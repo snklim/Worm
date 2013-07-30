@@ -24,7 +24,7 @@ namespace Worm
 
         private enum GameStatus
         {
-            Play, GameOver
+            Play, Pause, GameOver
         }
 
         private enum FieldCellState
@@ -239,7 +239,8 @@ namespace Worm
 
             public void Tick()
             {
-                m_Worm.MoveWorm();
+                if (WormGameStatus == GameStatus.Play)
+                    m_Worm.MoveWorm();
             }
 
             public void ChangeDirection(Direction newDirection)
@@ -249,15 +250,10 @@ namespace Worm
         }
 
         private GameField m_Field;
-        
-        private delegate void RefreshGameFieldDelegate();
-        private RefreshGameFieldDelegate m_RefreshGameField;
         private Timer m_Timer;
 
         private void InitGame()
-        {
-            m_RefreshGameField = new RefreshGameFieldDelegate(RefreshGameField);
-            
+        {            
             m_Field = new GameField(60, 30);
         }
 
@@ -304,11 +300,6 @@ namespace Worm
         private void MoveWorm()
         {
             m_Field.Tick();
-            m_RefreshGameField();
-        }
-
-        private void RefreshGameField()
-        {
             m_GameField.Refresh();
         }
 
@@ -346,6 +337,11 @@ namespace Worm
                 case 38: m_Field.ChangeDirection(Direction.Top); break;
                 case 39: m_Field.ChangeDirection(Direction.Right); break;
                 case 40: m_Field.ChangeDirection(Direction.Bottom); break;
+                // puse. key "P" has 80 code
+                case 80: m_Field.WormGameStatus = (m_Field.WormGameStatus == GameStatus.GameOver
+                        ? GameStatus.GameOver
+                            : (m_Field.WormGameStatus == GameStatus.Play ? GameStatus.Pause : GameStatus.Play));
+                    break;
             }
         }
     }
