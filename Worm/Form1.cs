@@ -24,7 +24,7 @@ namespace Worm
 
         private enum GameStatus
         {
-            Play, Pause, GameOver
+            Play, Pause, GameOver, YouWin
         }
 
         private enum FieldCellState
@@ -109,7 +109,9 @@ namespace Worm
 
                 if (_isHead && _gameField.GetValueInCell(PosX, PosY) == FieldCellState.Prize)
                 {
+                    _gameField.NumOfPrize -= 1;
                     AddNewPart();
+                    if (_gameField.NumOfPrize == 0) _gameField.WormGameStatus = GameStatus.YouWin;
                 }
 
                 _gameField.SetValueInCell(PosX, PosY, _isHead ? FieldCellState.WormHead : FieldCellState.WormPart);
@@ -180,6 +182,8 @@ namespace Worm
             private int _width;
             private int _height;
 
+            public int NumOfPrize { get; set; }
+
             private FieldCellState[,] _field;
 
             public int FieldWidth { get { return _width; } }
@@ -212,9 +216,11 @@ namespace Worm
 
                 m_Worm = new Worm(FieldWidth / 2, FieldHeight / 2, Direction.Right, Speed.Normal, 3, this);
 
-                int numOfPrizes = FieldWidth * FieldHeight / 100;
+                NumOfPrize = FieldWidth * FieldHeight / 100;
 
-                while (numOfPrizes > 0)
+                int leftToCreatePrizes = NumOfPrize;
+
+                while (leftToCreatePrizes > 0)
                 {
                     int x = m_Rnd.Next(FieldWidth);
                     int y = m_Rnd.Next(FieldHeight);
@@ -222,7 +228,7 @@ namespace Worm
                     if (GetValueInCell(x, y) == 0)
                     {
                         SetValueInCell(x, y, FieldCellState.Prize);
-                        numOfPrizes--;
+                        leftToCreatePrizes--;
                     }
                 }
             }
@@ -292,8 +298,11 @@ namespace Worm
             {
                 SizeF txtSize = g.MeasureString("Game Over", new Font(FontFamily.GenericSansSerif, 40));
                 g.DrawString("Game Over", new Font(FontFamily.GenericSansSerif, 40), new SolidBrush(Color.Black), (cWidth - txtSize.Width) / 2, (cHeight - txtSize.Height) / 2);
-
-                InitGame();
+            }
+            else if (m_Field.WormGameStatus == GameStatus.YouWin)
+            {
+                SizeF txtSize = g.MeasureString("You Win!!!", new Font(FontFamily.GenericSansSerif, 40));
+                g.DrawString("You Win!!!", new Font(FontFamily.GenericSansSerif, 40), new SolidBrush(Color.Black), (cWidth - txtSize.Width) / 2, (cHeight - txtSize.Height) / 2);
             }
         }
 
@@ -337,11 +346,13 @@ namespace Worm
                 case 38: m_Field.ChangeDirection(Direction.Top); break;
                 case 39: m_Field.ChangeDirection(Direction.Right); break;
                 case 40: m_Field.ChangeDirection(Direction.Bottom); break;
-                // puse. key "P" has 80 code
+                // pause game. key "P" has 80 code
                 case 80: m_Field.WormGameStatus = (m_Field.WormGameStatus == GameStatus.GameOver
                         ? GameStatus.GameOver
                             : (m_Field.WormGameStatus == GameStatus.Play ? GameStatus.Pause : GameStatus.Play));
                     break;
+                // new game. kay "N" has 78 code
+                case 78: InitGame(); break;
             }
         }
     }
