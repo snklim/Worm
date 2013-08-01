@@ -120,7 +120,10 @@ namespace Worm
                 {
                     _gameField.NumOfPrize -= 1;
                     AddNewPart();
-                    if (_gameField.NumOfPrize == 0) _gameField.WormGameStatus = GameStatus.YouWin;
+                    if (_gameField.NumOfPrize == 0)
+                    {
+                        _gameField.WormGameStatus = GameStatus.YouWin;
+                    }
                 }
 
                 _gameField.SetValueInCell(PosX, PosY, _isHead ? FieldCellState.WormHead : FieldCellState.WormPart);
@@ -200,12 +203,14 @@ namespace Worm
 
             private FieldCellState[,] _field;
 
+            private List<CellChange> _cellChanges;
+            private List<GameStatus> _gameStatusChanges = new List<GameStatus>();
+
             public int FieldWidth { get { return _width; } }
             public int FieldHeight { get { return _height; } }
 
-            public GameStatus WormGameStatus { get; set; }
-
-            private List<CellChange> _cellChanges;
+            GameStatus _wormGameStatus;
+            public GameStatus WormGameStatus { get { return _wormGameStatus; } set { _wormGameStatus = value; _gameStatusChanges.Add(value); } }
 
             public GameField(int width, int height)
             {
@@ -290,10 +295,17 @@ namespace Worm
                 _cellChanges.Add(change);
             }
 
-            public CellChange[] GetCellChenges(bool clear)
+            public CellChange[] GetCellChenges()
             {
                 CellChange[] changes = _cellChanges.ToArray();
-                if (clear) _cellChanges.Clear();
+                _cellChanges.Clear();
+                return changes;
+            }
+
+            public GameStatus[] GetGameStatusChange()
+            {
+                GameStatus[] changes = _gameStatusChanges.ToArray();
+                _gameStatusChanges.Clear();
                 return changes;
             }
         }
@@ -312,63 +324,99 @@ namespace Worm
 
         private void DrawGameField()
         {
-            Graphics g = Graphics.FromImage(m_MainSurface);
+            CellChange[] chenges = m_Field.GetCellChenges();
+            GameStatus[] gameStatusChanges = m_Field.GetGameStatusChange();
 
-            CellChange[] chenges = m_Field.GetCellChenges(true);
-
-            if (chenges.Length == 0) return;
+            if (chenges.Length == 0 && gameStatusChanges.Length == 0) return;
 
             int minX, minY, maxX, maxY;
-
             minX = minY = int.MaxValue;
             maxX = maxY = int.MinValue;
-            
+
+            int minPosX, minPosY, maxPosX, maxPosY;
+            minPosX = minPosY = int.MaxValue;
+            maxPosX = maxPosY = int.MinValue;
+                        
             // draw game field
             foreach (CellChange ch in chenges)
             {
                 minX = Math.Min(minX, ch.PosX);
                 minY = Math.Min(minY, ch.PosY);
-                maxX = Math.Max(maxX, ch.PosX+1);
-                maxY = Math.Max(maxY, ch.PosY+1);
+                maxX = Math.Max(maxX, ch.PosX + 1);
+                maxY = Math.Max(maxY, ch.PosY + 1);
+
+                minPosX = Math.Min(minPosX, m_DeltaX + minX * m_CellSize);
+                minPosY = Math.Min(minPosY, m_DeltaY + minY * m_CellSize);
+                maxPosX = Math.Max(maxPosX, m_DeltaX + maxX * m_CellSize);
+                maxPosY = Math.Max(maxPosY, m_DeltaY + maxY * m_CellSize);
             }
-            for (int i = minX; i < maxX; i++)
+
+            Graphics g = Graphics.FromImage(m_MainSurface);
+
+            if (chenges.Length > 0)
             {
-                for (int j = minY; j < maxY; j++)
+                Rectangle updateRect = new Rectangle(minPosX, minPosY, maxPosX - minPosX, maxPosY - minPosY);
+
+                if (minX == 0 && minY == 0 && maxX == m_Field.FieldWidth && maxY == m_Field.FieldHeight)
+                    updateRect = new Rectangle(0, 0, m_GameField.Width, m_GameField.Height);
+
+                g.FillRectangle(new SolidBrush(Color.Gray), updateRect);
+
+                for (int i = minX; i < maxX; i++)
                 {
-                    if (m_Field.GetValueInCell(i, j) == FieldCellState.Empty)
-                        g.DrawRectangle(new Pen(Color.Silver), m_DeltaX + i * m_CellSize, m_DeltaY + j * m_CellSize, m_CellSize, m_CellSize);
-                    else if (m_Field.GetValueInCell(i, j) == FieldCellState.WormHead)
-                        g.FillEllipse(new SolidBrush(Color.Green), m_DeltaX + m_CellSize * i, m_DeltaY + m_CellSize * j, m_CellSize, m_CellSize);
-                    else if (m_Field.GetValueInCell(i, j) == FieldCellState.WormPart)
-                        g.FillEllipse(new SolidBrush(Color.Orange), m_DeltaX + m_CellSize * i, m_DeltaY + m_CellSize * j, m_CellSize, m_CellSize);
-                    else if (m_Field.GetValueInCell(i, j) == FieldCellState.Prize)
-                        g.FillRectangle(new SolidBrush(Color.Red), m_DeltaX + i * m_CellSize, m_DeltaY + j * m_CellSize, m_CellSize, m_CellSize);
-                    else if (m_Field.GetValueInCell(i, j) == FieldCellState.Wall)
-                        g.FillRectangle(new SolidBrush(Color.Black), m_DeltaX + i * m_CellSize, m_DeltaY + j * m_CellSize, m_CellSize, m_CellSize);
+                    for (int j = minY; j < maxY; j++)
+                    {
+                        if (m_Field.GetValueInCell(i, j) == FieldCellState.Empty)
+                            g.DrawRectangle(new Pen(Color.Silver), m_DeltaX + i * m_CellSize, m_DeltaY + j * m_CellSize, m_CellSize, m_CellSize);
+                        else if (m_Field.GetValueInCell(i, j) == FieldCellState.WormHead)
+                            g.FillEllipse(new SolidBrush(Color.Green), m_DeltaX + m_CellSize * i, m_DeltaY + m_CellSize * j, m_CellSize, m_CellSize);
+                        else if (m_Field.GetValueInCell(i, j) == FieldCellState.WormPart)
+                            g.FillEllipse(new SolidBrush(Color.Orange), m_DeltaX + m_CellSize * i, m_DeltaY + m_CellSize * j, m_CellSize, m_CellSize);
+                        else if (m_Field.GetValueInCell(i, j) == FieldCellState.Prize)
+                            g.FillRectangle(new SolidBrush(Color.Red), m_DeltaX + i * m_CellSize, m_DeltaY + j * m_CellSize, m_CellSize, m_CellSize);
+                        else if (m_Field.GetValueInCell(i, j) == FieldCellState.Wall)
+                            g.FillRectangle(new SolidBrush(Color.Black), m_DeltaX + i * m_CellSize, m_DeltaY + j * m_CellSize, m_CellSize, m_CellSize);
+                    }
                 }
+
+                m_GameField.Invalidate(updateRect);
             }
+            else if (gameStatusChanges.Length > 0)
+            {
+                Rectangle updateRect = new Rectangle(0, 0, m_GameField.Width, m_GameField.Height);
 
-            g.Dispose();
+                foreach (GameStatus gCh in gameStatusChanges)
+                {
+                    if (gCh == GameStatus.GameOver || gCh == GameStatus.YouWin)
+                    {
+                        string msg = String.Empty;
+                        switch (m_Field.WormGameStatus)
+                        {
+                            case GameStatus.GameOver: msg = "Game Over"; break;
+                            case GameStatus.YouWin: msg = "You Win!!!"; break;
+                        }
 
-            m_GameField.Refresh();
+                        SizeF txtSize = g.MeasureString(msg, new Font(FontFamily.GenericSansSerif, 40));
+                        float txtPosX, txtPosY;
+                        txtPosX = (m_GameField.Width - txtSize.Width) / 2;
+                        txtPosY = (m_GameField.Height - txtSize.Height) / 2;
+                        g.DrawString(msg, new Font(FontFamily.GenericSansSerif, 40), new SolidBrush(Color.Black), txtPosX, txtPosY);
 
-            //if (m_Field.WormGameStatus == GameStatus.GameOver)
-            //{
-            //    SizeF txtSize = g.MeasureString("Game Over", new Font(FontFamily.GenericSansSerif, 40));
-            //    g.DrawString("Game Over", new Font(FontFamily.GenericSansSerif, 40), new SolidBrush(Color.Black), (m_GameField.Width - txtSize.Width) / 2, (m_GameField.Height - txtSize.Height) / 2);
-            //}
-            //else if (m_Field.WormGameStatus == GameStatus.YouWin)
-            //{
-            //    SizeF txtSize = g.MeasureString("You Win!!!", new Font(FontFamily.GenericSansSerif, 40));
-            //    g.DrawString("You Win!!!", new Font(FontFamily.GenericSansSerif, 40), new SolidBrush(Color.Black), (m_GameField.Width - txtSize.Width) / 2, (m_GameField.Height - txtSize.Height) / 2);
-            //}
+                        minX = Math.Min(minX, (int)Math.Floor(txtPosX));
+                        minY = Math.Min(minY, (int)Math.Floor(txtPosY));
+                        maxX = Math.Max(maxX, (int)Math.Ceiling(txtSize.Width + txtPosX));
+                        maxY = Math.Max(maxY, (int)Math.Ceiling(txtSize.Height + txtPosY));
+
+                        updateRect = new Rectangle(minX, minY, maxX - minX, maxY - minY);
+                    }
+                }
+
+                m_GameField.Invalidate(updateRect);
+            }
         }
 
-        public Form1()
+        private void InitGameField()
         {
-            InitGame();
-            InitializeComponent();
-
             int cWidth = m_GameField.Width;
             int cHeight = m_GameField.Height;
 
@@ -379,7 +427,14 @@ namespace Worm
             m_DeltaY = (cHeight - m_CellSize * m_Field.FieldHeight) / 2;
 
             m_MainSurface = new Bitmap(m_GameField.Width, m_GameField.Height);
+        }
 
+        public Form1()
+        {
+            InitGame();
+            InitializeComponent();
+
+            InitGameField();
             DrawGameField();
 
             m_Timer = new Timer();
@@ -392,36 +447,19 @@ namespace Worm
         {
             m_Field.Tick();
             DrawGameField();
-
-            //CellChange[] changes = m_Field.GetCellChenges(false);
-
-            //int minX, minY, maxX, maxY;
-            //minX = minY = int.MaxValue;
-            //maxX = maxY = int.MinValue;
-
-            //if (changes.Length == 0) return;
-
-            //foreach (CellChange ch in changes)
-            //{
-            //    minX = Math.Min(minX, m_DeltaX + m_CellSize * ch.PosX);
-            //    minY = Math.Min(minY, m_DeltaY + m_CellSize * ch.PosY);
-            //    maxX = Math.Max(maxX, m_DeltaX + m_CellSize * (ch.PosX + 1));
-            //    maxY = Math.Max(maxY, m_DeltaY + m_CellSize * (ch.PosY + 1));
-            //}
-
-            //m_GameField.Invalidate(new Rectangle(minX, minY, maxX - minX, maxY - minY));
         }
 
         private void m_GameField_Paint(object sender, PaintEventArgs e)
         {
-            //DrawGameField(e.Graphics);
-
-            e.Graphics.DrawImage(m_MainSurface, 0, 0, m_GameField.Width, m_GameField.Height);
+            e.Graphics.DrawImage(m_MainSurface, e.ClipRectangle, e.ClipRectangle, GraphicsUnit.Pixel);
         }
 
         private void m_GameField_Resize(object sender, EventArgs e)
         {
-            //DrawGameField(m_GameField.CreateGraphics());
+            InitGameField();
+            m_Field.SetCellChange(new CellChange { PosX = 0, PosY = 0, FieldCellStateChangedTo = FieldCellState.Empty });
+            m_Field.SetCellChange(new CellChange { PosX = m_Field.FieldWidth - 1, PosY = m_Field.FieldHeight - 1, FieldCellStateChangedTo = FieldCellState.Empty });
+            DrawGameField();
         }
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)
