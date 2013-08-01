@@ -148,7 +148,7 @@ namespace Worm
 
         private class Worm
         {
-            public GameLevel Level { get; private set; }
+            public GameLevel Level { get; set; }
             public Part Head { get; private set; }
 
             private GameField _gameField;
@@ -204,15 +204,15 @@ namespace Worm
             private FieldCellState[,] _field;
 
             private List<CellChange> _cellChanges;
-            private List<GameStatus> _gameStatusChanges = new List<GameStatus>();
 
             public int FieldWidth { get { return _width; } }
             public int FieldHeight { get { return _height; } }
 
-            GameStatus _wormGameStatus;
-            public GameStatus WormGameStatus { get { return _wormGameStatus; } set { _wormGameStatus = value; _gameStatusChanges.Add(value); } }
+            private List<GameStatus> _wormGameStatusChanges = new List<GameStatus>();
+            private GameStatus _wormGameStatus;
+            public GameStatus WormGameStatus { get { return _wormGameStatus; } set { _wormGameStatus = value; _wormGameStatusChanges.Add(value); } }
 
-            public GameField(int width, int height)
+            public GameField(int width, int height, GameLevel wormGameLevel)
             {
                 m_Rnd = new Random();
 
@@ -245,9 +245,9 @@ namespace Worm
                     SetValueInCell(FieldWidth - 1, j, FieldCellState.Wall);
                 }
 
-                m_Worm = new Worm(FieldWidth / 2, FieldHeight / 2, Direction.Right, GameLevel.Level10, 3, this);
+                m_Worm = new Worm(FieldWidth / 2, FieldHeight / 2, Direction.Right, wormGameLevel, 3, this);
 
-                NumOfPrize = FieldWidth * FieldHeight / 100;
+                NumOfPrize = 20;
 
                 int leftToCreatePrizes = NumOfPrize;
 
@@ -293,10 +293,10 @@ namespace Worm
                 return changes;
             }
 
-            public GameStatus[] GetGameStatusChange()
+            public GameStatus[] GetWormGameStatusChagnes()
             {
-                GameStatus[] changes = _gameStatusChanges.ToArray();
-                _gameStatusChanges.Clear();
+                GameStatus[] changes = _wormGameStatusChanges.ToArray();
+                _wormGameStatusChanges.Clear();
                 return changes;
             }
         }
@@ -306,9 +306,11 @@ namespace Worm
 
         int m_CellSize, m_DeltaX, m_DeltaY;
 
+        GameLevel m_DefaultGameLevel = GameLevel.Level1;
+
         private void InitGame()
         {            
-            m_Field = new GameField(60, 30);
+            m_Field = new GameField(60, 30, m_DefaultGameLevel);
         }
 
         Bitmap m_MainSurface;
@@ -316,9 +318,7 @@ namespace Worm
         private void DrawGameField()
         {
             CellChange[] chenges = m_Field.GetCellChenges();
-            GameStatus[] gameStatusChanges = m_Field.GetGameStatusChange();
-
-            if (chenges.Length == 0 && gameStatusChanges.Length == 0) return;
+            GameStatus[] gameChanges = m_Field.GetWormGameStatusChagnes();
 
             int minX, minY, maxX, maxY;
             minX = minY = int.MaxValue;
@@ -371,37 +371,36 @@ namespace Worm
                 }
 
                 m_GameField.Invalidate(updateRect);
+
+                foreach (GameStatus gameStatusChange in gameChanges)
+                {
+                    if (gameStatusChange == GameStatus.YouWin) LevelUp();
+                }
             }
-            else if (gameStatusChanges.Length > 0)
+
+            if (m_Field.WormGameStatus == GameStatus.GameOver || m_Field.WormGameStatus == GameStatus.YouWin)
             {
                 Rectangle updateRect = new Rectangle(0, 0, m_GameField.Width, m_GameField.Height);
 
-                foreach (GameStatus gCh in gameStatusChanges)
+                string msg = String.Empty;
+                switch (m_Field.WormGameStatus)
                 {
-                    if (gCh == GameStatus.GameOver || gCh == GameStatus.YouWin)
-                    {
-                        string msg = String.Empty;
-                        switch (m_Field.WormGameStatus)
-                        {
-                            case GameStatus.GameOver: msg = "Game Over"; break;
-                            case GameStatus.YouWin: msg = "You Win!!!"; break;
-                        }
-
-                        SizeF txtSize = g.MeasureString(msg, new Font(FontFamily.GenericSansSerif, 40));
-                        float txtPosX, txtPosY;
-                        txtPosX = (m_GameField.Width - txtSize.Width) / 2;
-                        txtPosY = (m_GameField.Height - txtSize.Height) / 2;
-                        g.DrawString(msg, new Font(FontFamily.GenericSansSerif, 40), new SolidBrush(Color.Black), txtPosX, txtPosY);
-
-                        minX = Math.Min(minX, (int)Math.Floor(txtPosX));
-                        minY = Math.Min(minY, (int)Math.Floor(txtPosY));
-                        maxX = Math.Max(maxX, (int)Math.Ceiling(txtSize.Width + txtPosX));
-                        maxY = Math.Max(maxY, (int)Math.Ceiling(txtSize.Height + txtPosY));
-
-                        updateRect = new Rectangle(minX, minY, maxX - minX, maxY - minY);
-                    }
+                    case GameStatus.GameOver: msg = "Game Over"; break;
+                    case GameStatus.YouWin: msg = "You Win"; break;
                 }
 
+                SizeF txtSize = g.MeasureString(msg, new Font(FontFamily.GenericSansSerif, 40));
+                float txtPosX, txtPosY;
+                txtPosX = (m_GameField.Width - txtSize.Width) / 2;
+                txtPosY = (m_GameField.Height - txtSize.Height) / 2;
+                g.DrawString(msg, new Font(FontFamily.GenericSansSerif, 40), new SolidBrush(Color.Black), txtPosX, txtPosY);
+
+                minX = Math.Min(minX, (int)Math.Floor(txtPosX));
+                minY = Math.Min(minY, (int)Math.Floor(txtPosY));
+                maxX = Math.Max(maxX, (int)Math.Ceiling(txtSize.Width + txtPosX));
+                maxY = Math.Max(maxY, (int)Math.Ceiling(txtSize.Height + txtPosY));
+
+                updateRect = new Rectangle(minX, minY, maxX - minX, maxY - minY);
                 m_GameField.Invalidate(updateRect);
             }
         }
@@ -429,9 +428,10 @@ namespace Worm
             DrawGameField();
 
             m_Timer = new Timer();
-            m_Timer.Interval = 50;
+            m_Timer.Interval = 10;
             m_Timer.Tick += m_Timer_Tick;
-            m_Timer.Start();
+
+            StartGame();
         }
 
         void m_Timer_Tick(object sender, EventArgs e)
@@ -469,6 +469,49 @@ namespace Worm
                 // new game. kay "N" has 78 code
                 case 78: InitGame(); break;
             }
+        }
+
+        private void StartGame()
+        {
+            m_Timer.Start();
+            startToolStripMenuItem.Text = "Stop";
+        }
+
+        private void StopGame()
+        {
+            m_Timer.Stop();
+            startToolStripMenuItem.Text = "Start";
+        }
+
+        private void startToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (m_Timer.Enabled) StopGame();
+            else StartGame();
+        }
+
+        public void LevelDown()
+        {
+            if ((int)m_DefaultGameLevel > 0) m_DefaultGameLevel = (GameLevel)(((int)m_DefaultGameLevel) - 1);
+        }
+
+        public void LevelUp()
+        {
+            if ((int)m_DefaultGameLevel < 10) m_DefaultGameLevel = (GameLevel)(((int)m_DefaultGameLevel) + 1);
+        }
+
+        private void levelDownToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            LevelDown();
+        }
+
+        private void levelUpToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            LevelUp();
+        }
+
+        private void newGameToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            InitGame();
         }
     }
 }
