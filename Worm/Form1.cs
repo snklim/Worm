@@ -17,9 +17,10 @@ namespace Worm
             None, Top, Right, Bottom, Left
         }
 
-        private enum Speed
+        private enum GameLevel
         {
-            Low = 6, Normal = 4, High = 2
+            Level1 = 1, Level2 = 2, Level3 = 3, Level4 = 4, Level5 = 5,
+            Level6 = 6, Level7 = 7, Level8 = 8, Level9 = 9, Level10 = 10
         }
 
         private enum GameStatus
@@ -112,7 +113,6 @@ namespace Worm
                 }
 
                 _gameField.SetValueInCell(PosX, PosY, FieldCellState.Empty);
-                _gameField.SetCellChange(new CellChange { PosX = PosX, PosY = PosY, FieldCellStateChangedTo = FieldCellState.Empty });
 
                 PosX = x; PosY = y;
 
@@ -127,7 +127,6 @@ namespace Worm
                 }
 
                 _gameField.SetValueInCell(PosX, PosY, _isHead ? FieldCellState.WormHead : FieldCellState.WormPart);
-                _gameField.SetCellChange(new CellChange { PosX = PosX, PosY = PosY, FieldCellStateChangedTo = _isHead ? FieldCellState.WormHead : FieldCellState.WormPart });
 
                 if (NextPart != null)
                 {
@@ -149,21 +148,19 @@ namespace Worm
 
         private class Worm
         {
-            public Speed MoveSpeed { get; private set; }
+            public GameLevel Level { get; private set; }
             public Part Head { get; private set; }
 
             private GameField _gameField;
 
-            public Worm(int headPosX, int headPosY, Direction moveDirection, Speed moveSpeed, int tailLong, GameField gameField)
+            public Worm(int headPosX, int headPosY, Direction moveDirection, GameLevel level, int tailLong, GameField gameField)
             {
                 _gameField = gameField;
 
                 int partId = 1;
-                MoveSpeed = moveSpeed;
+                Level = level;
                 Head = new Part(partId++, true, headPosX, headPosY, moveDirection, gameField, this);
                 Part part = Head;
-
-                _gameField.SetCellChange(new CellChange { PosX = headPosX, PosY = headPosY, FieldCellStateChangedTo = FieldCellState.WormHead });
 
                 while (tailLong > 0)
                 {
@@ -172,17 +169,20 @@ namespace Worm
                     part.NextPart = nextPart;
                     part = nextPart;
                     tailLong--;
-
-                    _gameField.SetCellChange(new CellChange { PosX = headPosX, PosY = headPosY, FieldCellStateChangedTo = FieldCellState.WormPart });
                 }
             }
 
             private int _tickCount = 0;
+            private int _numOfLevels = Enum.GetValues(typeof(GameLevel)).Length;
             public void MoveWorm()
             {
                 _tickCount++;
-                if (_tickCount % (int)MoveSpeed == 0)
+
+                if (_tickCount % (_numOfLevels + 1 - (int)Level) == 0)
+                {
                     Head.Move();
+                    _tickCount = 0;
+                }
             }
 
             public void ChangeDirection(Direction moveDirection)
@@ -229,7 +229,7 @@ namespace Worm
                 {
                     for (int j = 0; j < _height; j++)
                     {
-                        _cellChanges.Add(new CellChange { PosX = i, PosY = j, FieldCellStateChangedTo = FieldCellState.Empty });
+                        SetValueInCell(i, 0, FieldCellState.Empty);
                     }
                 }
 
@@ -237,19 +237,15 @@ namespace Worm
                 {
                     SetValueInCell(i, 0, FieldCellState.Wall);
                     SetValueInCell(i, FieldHeight - 1, FieldCellState.Wall);
-                    _cellChanges.Add(new CellChange { PosX = i, PosY = 0, FieldCellStateChangedTo = FieldCellState.Wall });
-                    _cellChanges.Add(new CellChange { PosX = i, PosY = FieldHeight - 1, FieldCellStateChangedTo = FieldCellState.Wall });
                 }
 
                 for (int j = 0; j < FieldHeight; j++)
                 {
                     SetValueInCell(0, j, FieldCellState.Wall);
                     SetValueInCell(FieldWidth - 1, j, FieldCellState.Wall);
-                    _cellChanges.Add(new CellChange { PosX = 0, PosY = j, FieldCellStateChangedTo = FieldCellState.Wall });
-                    _cellChanges.Add(new CellChange { PosX = FieldWidth - 1, PosY = j, FieldCellStateChangedTo = FieldCellState.Wall });
                 }
 
-                m_Worm = new Worm(FieldWidth / 2, FieldHeight / 2, Direction.Right, Speed.Normal, 3, this);
+                m_Worm = new Worm(FieldWidth / 2, FieldHeight / 2, Direction.Right, GameLevel.Level10, 3, this);
 
                 NumOfPrize = FieldWidth * FieldHeight / 100;
 
@@ -263,7 +259,6 @@ namespace Worm
                     if (GetValueInCell(x, y) == 0)
                     {
                         SetValueInCell(x, y, FieldCellState.Prize);
-                        _cellChanges.Add(new CellChange { PosX = x, PosY = y, FieldCellStateChangedTo = FieldCellState.Prize });
                         leftToCreatePrizes--;
                     }
                 }
@@ -276,6 +271,7 @@ namespace Worm
 
             public void SetValueInCell(int x, int y, FieldCellState value)
             {
+                _cellChanges.Add(new CellChange { PosX = x, PosY = y, FieldCellStateChangedTo = value });
                 _field[x, y] = value;
             }
 
@@ -288,11 +284,6 @@ namespace Worm
             public void ChangeDirection(Direction newDirection)
             {
                 m_Worm.ChangeDirection(newDirection);
-            }
-
-            public void SetCellChange(CellChange change)
-            {
-                _cellChanges.Add(change);
             }
 
             public CellChange[] GetCellChenges()
@@ -457,8 +448,8 @@ namespace Worm
         private void m_GameField_Resize(object sender, EventArgs e)
         {
             InitGameField();
-            m_Field.SetCellChange(new CellChange { PosX = 0, PosY = 0, FieldCellStateChangedTo = FieldCellState.Empty });
-            m_Field.SetCellChange(new CellChange { PosX = m_Field.FieldWidth - 1, PosY = m_Field.FieldHeight - 1, FieldCellStateChangedTo = FieldCellState.Empty });
+            m_Field.SetValueInCell(0, 0, m_Field.GetValueInCell(0, 0));
+            m_Field.SetValueInCell(m_Field.FieldWidth - 1, m_Field.FieldHeight - 1, m_Field.GetValueInCell(m_Field.FieldWidth - 1, m_Field.FieldHeight - 1));
             DrawGameField();
         }
 
